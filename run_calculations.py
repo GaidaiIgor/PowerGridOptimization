@@ -44,13 +44,13 @@ def get_generator_commitment_problem() -> GeneratorCommitmentProblem:
 
 
 def get_power_flow_ac_problem() -> PowerFlowACProblem:
-    voltage_range = (0, 100)
+    voltage_range = (0, 10)
     angle_range = (0, 0)
     graph = Graph()
 
-    graph.add_node(0, generators=[Generator((0, 150), (0, 0), (0, 10, 1))], load=0, voltage_range=voltage_range, angle_range=angle_range)
+    graph.add_node(0, generators=[Generator((0, 100), (0, 0), (0, 1, 1))], load=0, voltage_range=voltage_range, angle_range=angle_range)
     graph.add_node(1, generators=[], load=10, voltage_range=voltage_range, angle_range=angle_range)
-    graph.add_edge(0, 1, capacity=1000, admittance=1)
+    graph.add_edge(0, 1, capacity=100, admittance=1)
 
     # graph.add_node(0, generators=[Generator((0, 30), (0, 0), (0, 10, 1))], load=0, voltage_range=voltage_range, angle_range=angle_range)
     # graph.add_node(1, generators=[Generator((0, 10), (0, 0), (0, 20, 1))], load=10, voltage_range=voltage_range, angle_range=angle_range)
@@ -63,8 +63,8 @@ def get_power_flow_ac_problem() -> PowerFlowACProblem:
 
 
 def main():
-    problem = get_generator_commitment_problem()
-    # problem = get_power_flow_ac_problem()
+    # problem = get_generator_commitment_problem()
+    problem = get_power_flow_ac_problem()
     penalty_mult = 10
     num_gen = len(problem.generators)
 
@@ -72,8 +72,8 @@ def main():
     mixer = ZXMixer(num_gen)
     num_layers = 1
 
-    # sampler = ExactSampler()
-    sampler = MySamplerV2(StatevectorSampler(default_shots=1000))
+    sampler = ExactSampler()
+    # sampler = MySamplerV2(StatevectorSampler(default_shots=1000))
     # sampler = IonQSampler("simulator", 1000, None)
     # sampler = IonQSampler("qpu.forte-enterprise-1", 1000, None)
 
@@ -83,11 +83,6 @@ def main():
     vqa = VariationalCircuit(num_layers, [entangler, mixer], sampler)
     initial_angles = rng.uniform(-np.pi, np.pi, len(vqa.circuit.parameters))
     cost_function = partial(problem.evaluate, penalty_mult=penalty_mult)
-
-    # probs = {'01': 0.446, '10': 0.451, '11': 0.085, '00': 0.018}
-    # expectation = utils.get_cost_expectation(cost_function, probs)
-    # print(f"Expectation: {expectation}")
-
     result = vqa.optimize_parameters(cost_function, initial_angles)
 
     exact_sampler = ExactSampler()
@@ -101,9 +96,9 @@ def main():
 
     best_sample = min(problem.optimize_power.cache.items(), key=lambda pair: pair[1].total)
     print("=== Best sample ===")
-    print(f"Power optimization successful: {best_sample[1].success}")
+    print(f"Classical optimization successful: {best_sample[1].success}")
     print(f"Generators selected: {best_sample[0]}")
-    print(f"Optimized power: {best_sample[1].x}")
+    print(f"Optimized classical variables: {best_sample[1].x}")
     print(f"Optimized cost: {best_sample[1].fun}")
     print(f"Penalty: {best_sample[1].penalty}")
 

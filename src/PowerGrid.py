@@ -28,7 +28,7 @@ def get_penalty(params: list[float], constraints: list[dict[str, Any]], mult: fl
     penalty = 0
     for constraint in constraints:
         val = constraint["fun"](params)
-        penalty += mult * np.sum(min(val, 0) ** 2)
+        penalty += mult * np.sum(np.minimum(val, 0) ** 2)
     return penalty
 
 
