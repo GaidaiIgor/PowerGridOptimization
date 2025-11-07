@@ -7,7 +7,7 @@ import numpy as np
 from networkx import Graph
 from numpy.typing import NDArray
 from scipy import optimize
-from scipy.optimize import OptimizeResult
+from scipy.optimize import OptimizeResult, LinearConstraint, NonlinearConstraint
 
 
 def cached[K: Hashable, **P, R](func: Callable[Concatenate[K, P], R]) -> Callable[Concatenate[K, P], R]:
@@ -23,11 +23,15 @@ def cached[K: Hashable, **P, R](func: Callable[Concatenate[K, P], R]) -> Callabl
     return wrapper
 
 
-def get_penalty(params: list[float], constraints: list[dict[str, Any]], mult: float = 1e1) -> float:
+def get_penalty(params: list[float], constraints: list[LinearConstraint | NonlinearConstraint], mult: float = 1e1) -> float:
     """ Evaluates penalty term for a given optimization parameter vector and list of constraints. """
     penalty = 0
     for constraint in constraints:
-        val = constraint["fun"](params)
+        if isinstance(constraint, LinearConstraint):
+            residuals = constraint.residual(params)
+            val = np.concatenate((*residuals, ))
+        elif isinstance(constraint, NonlinearConstraint):
+            val = constraint.fun(params)
         penalty += mult * np.sum(np.minimum(val, 0) ** 2)
     return penalty
 
@@ -184,6 +188,26 @@ class PowerFlowACProblem:
         initial_point = [np.average(bound) for bound in bounds]
         return initial_point
 
+    @staticmethod
+    def convert_bounds_to_constraints(bounds: list[NDArray[float]]) -> LinearConstraint:
+        """ Converts bounds to a linear constraint object. """
+        A = np.eye(len(bounds))
+        bounds_matrix = np.array(bounds)
+        constraint = LinearConstraint(A, bounds_matrix[:, 0], bounds_matrix[:, 1])
+        return constraint
+
+    def evaluate_line_powers(self, params: list[float]) -> list[complex]:
+        voltage_magnitudes = np.array(params[2 * len(self.generators):2 * len(self.generators) + len(self.graph)])
+        phase_angles = np.array(params[2 * len(self.generators) + len(self.graph):])
+        voltages = voltage_magnitudes * np.exp(1j * phase_angles)
+        line_powers = []
+        for node_label, node_data in self.graph.nodes(data=True):
+            for _, neighbor, line_data in self.graph.edges(node_label, data=True):
+                current = line_data["admittance"] * (voltages[node_data["node_ind"]] - voltages[self.graph.nodes[neighbor]["node_ind"]])
+                line_power = voltages[node_data["node_ind"]] * np.conj(current)
+                line_powers.append(line_power)
+        return line_powers
+
     def evaluate_constraints(self, params: list[float]) -> list[float]:
         """
         Evaluates all constraints, i.e. power balance at each node (generated params + incoming - outgoing - load >= 0) and line capacities (|S_ij| <= max capacity).
@@ -222,10 +246,11 @@ class PowerFlowACProblem:
         """ Finds optimal power vector for a given set of enabled generators, defined by the generator_statuses. """
         bounds = self.get_bounds(generator_statuses)
         initial_point = self.get_initial_point(bounds)
-        constraints = [{"type": "ineq", "fun": self.evaluate_constraints}]
+        constraints = [self.convert_bounds_to_constraints(bounds), NonlinearConstraint(self.evaluate_constraints, 0, np.inf)]
+        # constraints = [{"type": "ineq", "fun": self.evaluate_constraints}]
         cost_function = partial(self.get_generation_cost, generator_statuses)
         options = {"maxiter": 2 ** 31 - 1}
-        result = optimize.minimize(cost_function, initial_point, method="SLSQP", bounds=bounds, constraints=constraints, options=options)
+        result = optimize.minimize(cost_function, initial_point, method="SLSQP", constraints=constraints, options=options)
         result.penalty = get_penalty(result.x, constraints, penalty_mult)
         result.total = result.fun + result.penalty
         return result

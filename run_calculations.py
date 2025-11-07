@@ -45,12 +45,12 @@ def get_generator_commitment_problem() -> GeneratorCommitmentProblem:
 
 def get_power_flow_ac_problem() -> PowerFlowACProblem:
     voltage_range = (0, 10)
-    angle_range = (0, 0)
+    angle_range = (-np.pi, np.pi)
     graph = Graph()
 
-    graph.add_node(0, generators=[Generator((0, 100), (0, 0), (0, 1, 1))], load=0, voltage_range=voltage_range, angle_range=angle_range)
+    graph.add_node(0, generators=[Generator((0, 100), (0, 100), (0, 1, 1))], load=0, voltage_range=voltage_range, angle_range=angle_range)
     graph.add_node(1, generators=[], load=10, voltage_range=voltage_range, angle_range=angle_range)
-    graph.add_edge(0, 1, capacity=100, admittance=1)
+    graph.add_edge(0, 1, capacity=100, admittance=1+1j)
 
     # graph.add_node(0, generators=[Generator((0, 30), (0, 0), (0, 10, 1))], load=0, voltage_range=voltage_range, angle_range=angle_range)
     # graph.add_node(1, generators=[Generator((0, 10), (0, 0), (0, 20, 1))], load=10, voltage_range=voltage_range, angle_range=angle_range)
