@@ -1,19 +1,12 @@
 import time
-from functools import partial
 
 import numpy as np
-import qiskit
 from networkx import Graph
-from numpy import random
-from qiskit import QuantumCircuit
-from qiskit.primitives import StatevectorSampler
-from qiskit_ionq import IonQProvider
 
-import src.utils as utils
 from src.CircuitLayer import AllToAllEntangler, ZXMixer
-from src.HybridSolver import HybridSolver
-from src.PowerGridProblem import GeneratorCommitmentProblem, Generator, SimplePowerFlowProblem, PowerFlowACProblem
-from src.Sampler import ExactSampler, MySamplerV2, IonQSampler
+from src.PowerGridSolver import HybridSolver, ClassicalACSolver
+from src.PowerGridProblem import GeneratorCommitmentProblem, Generator, PowerNetwork
+from src.Sampler import ExactSampler
 from src.VariationalQuantumProgram import VariationalQuantumProgram
 
 
@@ -44,7 +37,7 @@ def get_generator_commitment_problem() -> GeneratorCommitmentProblem:
     return problem
 
 
-def get_power_flow_ac_problem() -> PowerFlowACProblem:
+def get_power_flow_ac_problem() -> PowerNetwork:
     voltage_range = (0, 10)
     angle_range = (-np.pi, np.pi)
     graph = Graph()
@@ -60,7 +53,7 @@ def get_power_flow_ac_problem() -> PowerFlowACProblem:
     # graph.add_edge(0, 2, capacity=5, admittance=1)
     # graph.add_edge(1, 2, capacity=10, admittance=1)
 
-    return PowerFlowACProblem(graph)
+    return PowerNetwork(graph)
 
 
 def get_variational_quantum_program(num_qubits: int) -> VariationalQuantumProgram:
@@ -77,24 +70,28 @@ def get_variational_quantum_program(num_qubits: int) -> VariationalQuantumProgra
 
 
 def main():
-    # problem = get_generator_commitment_problem()
-    problem = get_power_flow_ac_problem()
+    # network = get_generator_commitment_problem()
+    network = get_power_flow_ac_problem()
 
-    num_gen = len(problem.generators)
-    vqp = get_variational_quantum_program(num_gen)
-    solver = HybridSolver(vqp)
+    solver = ClassicalACSolver()
 
-    solution = solver.solve(problem)
-    print(f"Optimized probabilities: {solution.extra["final_probs"]}")
-    print(f"Optimized expectation: {solution.extra["cost_expectation"]}")
-    print(f"Number of jobs: {solution.extra["num_jobs"]}")
+    # num_gen = len(network.generators)
+    # vqp = get_variational_quantum_program(num_gen)
+    # solver = HybridSolver(vqp)
 
-    print("=== Best sample ===")
-    print(f"Classical optimization successful: {solution.extra["opt_result"].success}")
-    print(f"Generators selected: {solution.generator_statuses}")
-    print(f"Optimized classical variables: {solution.grid_parameters}")
-    print(f"Optimized cost: {solution.cost}")
-    print(f"Penalty: {solution.extra["opt_result"].penalty}")
+    network = solver.solve(network)
+    network.print_solution()
+
+    # print(f"Optimized probabilities: {solution.extra["final_probs"]}")
+    # print(f"Optimized expectation: {solution.extra["cost_expectation"]}")
+    # print(f"Number of jobs: {solution.extra["num_jobs"]}")
+    #
+    # print("=== Best sample ===")
+    # print(f"Classical optimization successful: {solution.extra["opt_result"].success}")
+    # print(f"Generators selected: {solution.generator_statuses}")
+    # print(f"Optimized classical variables: {solution.grid_parameters}")
+    # print(f"Optimized cost: {solution.cost}")
+    # print(f"Penalty: {solution.extra["opt_result"].penalty}")
 
 
 if __name__ == "__main__":

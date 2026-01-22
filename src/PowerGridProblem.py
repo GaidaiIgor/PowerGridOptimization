@@ -55,7 +55,7 @@ class Generator:
 
 @dataclass
 class PowerGridProblem(ABC):
-    """ Generic protocol for a power grid problem. """
+    """ Generic protocol for a power grid network. """
     generators: NDArray[Generator]
 
     def __post_init__(self):
@@ -63,7 +63,7 @@ class PowerGridProblem(ABC):
 
     @abstractmethod
     def optimize_power(self, generator_statuses: str, penalty_mult: float = 10) -> OptimizeResult:
-        """ Optimizes continuous problem variables for given generator statuses. Returns full OptimizeResult. Cached. """
+        """ Optimizes continuous network variables for given generator statuses. Returns full OptimizeResult. Cached. """
         pass
 
     def evaluate(self, generator_statuses: str, penalty_mult: float = 10) -> float:
@@ -73,7 +73,7 @@ class PowerGridProblem(ABC):
 
 @dataclass
 class GeneratorCommitmentProblem(PowerGridProblem):
-    """ Describes a unit commitment problem in a power grid.
+    """ Describes a unit commitment network in a power grid.
     I.e. given a set of generators, which ones should be enabled and at what power in order to meet target load using the smallest operation cost. """
     load: float
 
@@ -94,9 +94,9 @@ class GeneratorCommitmentProblem(PowerGridProblem):
 
 class SimplePowerFlowProblem(PowerGridProblem):
     """ Generalized version of GeneratorCommitmentProblem, where locations of generators and loads are taken into account.
-    Specifically, the problem is described by a graph, where nodes represent neighborhoods that can include generators and loads.
+    Specifically, the network is described by a graph, where nodes represent neighborhoods that can include generators and loads.
     Generated power is consumed by local loads. Any excess power can be transferred to adjacent nodes to supplement their generators.
-    Edges represent power lines between neighborhoods and have finite capacities, so routing the generated power to the loads now becomes a problem too. """
+    Edges represent power lines between neighborhoods and have finite capacities, so routing the generated power to the loads now becomes a network too. """
 
     def __init__(self, graph: Graph):
         """ Graph nodes should have the following properties:
@@ -154,7 +154,7 @@ class SimplePowerFlowProblem(PowerGridProblem):
         return result
 
 
-class PowerFlowACProblem(PowerGridProblem):
+class PowerNetwork(PowerGridProblem):
     """ Physical version of SimplePowerFlowProblem, where power is complex, lines are not lossless and line flows have to satisfy physical constraints. """
 
     def __init__(self, graph: Graph):
@@ -262,10 +262,26 @@ class PowerFlowACProblem(PowerGridProblem):
         result.total = result.fun + result.penalty
         return result
 
+    def print_solution(self):
+        """ Prints optimized problem values. """
+        if self.graph.graph["num_sols"] == 0:
+            print("Failed to find a feasible solution")
+            return
+
+        for node_label, node_data in self.graph.nodes(data=True):
+            print(f"Node: {node_label}")
+            print(f"\tVoltage: {node_data["v"]}")
+            print(f"\tAngle: {node_data["d"]}")
+            if node_data["u"]:
+                print(f"\tGenerators:")
+            for i in range(len(node_data["u"])):
+                print(f"\t\t{i}. Enabled: {node_data["u"][i]}, P: {node_data["p"][i]}, Q: {node_data["q"][i]}")
+            print()
+
 
 @dataclass
 class PowerGridSolution:
-    """ Represents solution to a power grid problem. """
+    """ Represents solution to a power grid network. """
     generator_statuses: str
     grid_parameters: NDArray[float]
     cost: float
